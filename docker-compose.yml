@@ -11,8 +11,19 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  pgadmin:
+    image: dpage/pgadmin4:9.16
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=bhaveshjagdishsharma1300@gmail.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
   user-service:
-    container_name: user-service
     build:
       context: ./services/user-service
       dockerfile: Dockerfile.dev
@@ -28,3 +39,4 @@ services:
 
 volumes:
   postgres-data:
+  pgadmin-data:
