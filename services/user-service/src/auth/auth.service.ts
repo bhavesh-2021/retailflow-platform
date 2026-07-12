@@ -1,35 +1,38 @@
 import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { LoginDto, RegisterDto } from './dto';
+import { LoginDto, RegisterDto, UserResponseDto } from './dto';
 import { UserRepository } from '../repositories';
 import bcrypt from "bcrypt";
 import { JwtService } from '@nestjs/jwt';
 import { TokenPayload } from '../common/interfaces';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-  private readonly accessSecretKey = String(process.env.ACCESS_SECRET_KEY);
-  private readonly refreshSecretKey = String(process.env.REFRESH_SECRET_KEY);
-
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService
   ) { }
 
   private generateAccessToken(payload: TokenPayload) {
+    const secret = this.configService.getOrThrow<string>('ACCESS_SECRET_KEY');
+
     return this.jwtService.signAsync(payload, {
-      expiresIn: "15m",
-      secret: this.accessSecretKey,
+      secret,
+      expiresIn: "15m"
     });
   }
 
   private generateRefreshToken(payload: TokenPayload) {
+    const secret = this.configService.getOrThrow<string>('REFRESH_SECRET_KEY');
+
     return this.jwtService.signAsync(payload, {
-      expiresIn: "7d",
-      secret: this.refreshSecretKey,
+      secret,
+      expiresIn: "7d"
     });
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto): Promise<UserResponseDto> {
     const exitingUser = await this.userRepository.findByEmail(dto.email);
 
     if (exitingUser) {
@@ -38,26 +41,46 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    return this.userRepository.saveUser({
+    const user = await this.userRepository.saveUser({
       email: dto.email,
       password: hashedPassword,
       firstName: dto.firstName,
       lastName: dto.lastName,
       phoneNumber: dto.phoneNumber,
     });
+
+    const payload = {
+      id: user.id,
+      email: user.email,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(payload),
+      this.generateRefreshToken(payload),
+    ]);
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      accessToken,
+      refreshToken,
+    };
   }
 
   async login(dto: LoginDto) {
     const user = await this.userRepository.findByEmail(dto.email);
 
     if (!user) {
-      throw new NotFoundException("User not found");
+      throw new UnauthorizedException("Invalid email or password");
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException("Password is incorrect");
+      throw new UnauthorizedException("Invalid email or password");
     }
 
     const payload = {
@@ -76,8 +99,11 @@ export class AuthService {
     };
   }
 
-  refreshToken(): string {
-    return 'Token refreshed successfully!';
+  refreshToken(payload?: TokenPayload | null) {
+    if (!payload) {
+      throw new UnauthorizedException()
+    }
+    return this.generateAccessToken(payload);
   }
 
   logout(): string {

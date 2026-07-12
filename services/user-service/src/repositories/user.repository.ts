@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "../entities";
-import { Repository } from "typeorm";
+import { Not, Repository } from "typeorm";
+import { UserStatus } from "../common/enums";
 
 @Injectable()
 export class UserRepository {
@@ -10,7 +11,8 @@ export class UserRepository {
   findById(id: string): Promise<User | null> {
     return this.repository.findOne({
       where: {
-        id
+        id,
+        status: Not(UserStatus.SUSPENDED),
       }
     });
   };
@@ -19,6 +21,7 @@ export class UserRepository {
     return this.repository.findOne({
       where: {
         email,
+        status: Not(UserStatus.SUSPENDED),
       }
     });
   };
