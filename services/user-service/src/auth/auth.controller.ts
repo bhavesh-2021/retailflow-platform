@@ -1,6 +1,7 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto';
+import { LoginDto, RegisterDto } from './dto';
+import type { Response } from 'express';
 
 @Controller('/auth')
 export class AuthController {
@@ -17,8 +18,20 @@ export class AuthController {
   }
 
   @Post('/login')
-  async login(): Promise<string> {
-    return this.authService.login();
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.authService.login(body);
+
+    res.cookie("refresh_token", tokens.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return {
+      message: "User Login Successfully",
+      accessToken: tokens.accessToken
+    };
   }
 
   @Post('/refresh-token')

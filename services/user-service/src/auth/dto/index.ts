@@ -1,1 +1,2 @@
-export * from "./registerDto";
+export * from "./register.dto";
+export * from "./login.dto";
